@@ -1,26 +1,23 @@
-import os
 import json
 import requests
 from fastapi import FastAPI, Body
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
-from dotenv import load_dotenv
 
+from app.config import cfg
 from app.scanner import build
 from app.overrides import load_json, save_json, add_unique, remove_value
-
-load_dotenv()
 
 DATA_DIR = "/app/data"
 RESULTS_FILE = f"{DATA_DIR}/results.json"
 OVERRIDES_FILE = f"{DATA_DIR}/overrides.json"
 
-RADARR_ENABLED = os.getenv("RADARR_ENABLED", "false").lower() == "true"
-RADARR_URL = os.getenv("RADARR_URL", "")
-RADARR_API_KEY = os.getenv("RADARR_API_KEY", "")
-RADARR_ROOT = os.getenv("RADARR_ROOT_FOLDER_PATH", "/movies")
-RADARR_PROFILE = int(os.getenv("RADARR_QUALITY_PROFILE_ID", "1"))
-RADARR_MONITORED = os.getenv("RADARR_MONITORED", "true").lower() == "true"
+RADARR_ENABLED = cfg("radarr", "enabled")
+RADARR_URL = cfg("radarr", "url")
+RADARR_API_KEY = cfg("radarr", "api_key")
+RADARR_ROOT = cfg("radarr", "root_folder_path")
+RADARR_PROFILE = int(cfg("radarr", "quality_profile_id"))
+RADARR_MONITORED = cfg("radarr", "monitored")
 
 app = FastAPI()
 
@@ -60,87 +57,6 @@ def api_scan():
     return build()
 
 
-@app.post("/api/ignore")
-def api_ignore(payload: dict = Body(...)):
-
-    ov = load_json(OVERRIDES_FILE)
-
-    kind = payload.get("kind")
-    value = payload.get("value")
-
-    if kind == "movie":
-        add_unique(ov["ignore_movies"], int(value))
-
-    elif kind == "franchise":
-        add_unique(ov["ignore_franchises"], str(value))
-
-    elif kind == "director":
-        add_unique(ov["ignore_directors"], str(value))
-
-    elif kind == "actor":
-        add_unique(ov["ignore_actors"], str(value))
-
-    else:
-        return {"ok": False}
-
-    save_json(OVERRIDES_FILE, ov)
-
-    return {"ok": True}
-
-
-@app.post("/api/unignore")
-def api_unignore(payload: dict = Body(...)):
-
-    ov = load_json(OVERRIDES_FILE)
-
-    kind = payload.get("kind")
-    value = payload.get("value")
-
-    if kind == "movie":
-        remove_value(ov["ignore_movies"], int(value))
-
-    elif kind == "franchise":
-        remove_value(ov["ignore_franchises"], str(value))
-
-    elif kind == "director":
-        remove_value(ov["ignore_directors"], str(value))
-
-    elif kind == "actor":
-        remove_value(ov["ignore_actors"], str(value))
-
-    save_json(OVERRIDES_FILE, ov)
-
-    return {"ok": True}
-
-
-@app.post("/api/wishlist/add")
-def wishlist_add(payload: dict = Body(...)):
-
-    ov = load_json(OVERRIDES_FILE)
-
-    tmdb = int(payload.get("tmdb"))
-
-    add_unique(ov["wishlist_movies"], tmdb)
-
-    save_json(OVERRIDES_FILE, ov)
-
-    return {"ok": True}
-
-
-@app.post("/api/wishlist/remove")
-def wishlist_remove(payload: dict = Body(...)):
-
-    ov = load_json(OVERRIDES_FILE)
-
-    tmdb = int(payload.get("tmdb"))
-
-    remove_value(ov["wishlist_movies"], tmdb)
-
-    save_json(OVERRIDES_FILE, ov)
-
-    return {"ok": True}
-
-
 @app.post("/api/radarr/add")
 def radarr_add(payload: dict = Body(...)):
 
@@ -165,12 +81,16 @@ def radarr_add(payload: dict = Body(...)):
         "X-Api-Key": RADARR_API_KEY
     }
 
+    print("RADARR REQUEST", body)
+
     r = requests.post(
         f"{RADARR_URL}/api/v3/movie",
         json=body,
         headers=headers,
         timeout=20
     )
+
+    print("RADARR RESPONSE", r.status_code, r.text)
 
     if r.status_code not in (200, 201):
         return {"ok": False, "error": r.text}

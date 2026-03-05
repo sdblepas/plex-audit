@@ -1,0 +1,35 @@
+server:
+  ui_port: 8787
+  tz: Asia/Jerusalem
+
+plex:
+  url: "http://10.100.102.9:32400"
+  token: "YOUR_PLEX_TOKEN"
+  library_name: "Movies"
+  page_size: 500
+  short_movie_limit: 60
+
+tmdb:
+  api_key: "YOUR_TMDB_KEY"
+  min_delay: 0.02
+
+classics:
+  pages: 4
+  min_votes: 5000
+  min_rating: 8.0
+  max_results: 120
+
+actor_hits:
+  min_votes: 500
+  max_results_per_actor: 10
+
+radarr:
+  enabled: false
+  url: "http://10.100.102.9:27878"
+  api_key: ""
+  root_folder_path: "/movies"
+  quality_profile_id: 6
+  monitored: true
+
+paths:
+  data_dir: "/app/data"

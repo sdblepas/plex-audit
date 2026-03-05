@@ -1,17 +1,15 @@
-import os
 import requests
 import xml.etree.ElementTree as ET
 from collections import defaultdict
-from dotenv import load_dotenv
 
-load_dotenv()
+from app.config import cfg
 
-PLEX_URL = os.getenv("PLEX_URL")
-PLEX_TOKEN = os.getenv("PLEX_TOKEN")
-LIBRARY_NAME = os.getenv("LIBRARY_NAME")
+PLEX_URL = cfg("plex", "url")
+PLEX_TOKEN = cfg("plex", "token")
+LIBRARY_NAME = cfg("plex", "library_name")
 
-SHORT_MOVIE_LIMIT = int(os.getenv("SHORT_MOVIE_LIMIT", "60"))
-PLEX_PAGE_SIZE = int(os.getenv("PLEX_PAGE_SIZE", "500"))
+SHORT_MOVIE_LIMIT = int(cfg("plex", "short_movie_limit"))
+PLEX_PAGE_SIZE = int(cfg("plex", "page_size"))
 
 
 def plex_get(path, params=None):
@@ -39,7 +37,7 @@ def library_key():
         if d.attrib.get("title") == LIBRARY_NAME:
             return d.attrib.get("key")
 
-    raise RuntimeError(f"Library '{LIBRARY_NAME}' not found")
+    raise RuntimeError("Plex library not found")
 
 
 def scan_movies():
@@ -81,11 +79,7 @@ def scan_movies():
 
             scanned += 1
 
-            title = v.attrib.get("title")
-            year = v.attrib.get("year")
-
             duration_ms = v.attrib.get("duration")
-
             duration_min = int(duration_ms) / 60000 if duration_ms else 0
 
             if duration_min < SHORT_MOVIE_LIMIT:
@@ -99,17 +93,14 @@ def scan_movies():
                 gid = g.attrib.get("id")
 
                 if gid.startswith("tmdb://"):
-                    try:
-                        tmdb_id = int(gid.split("tmdb://")[1])
-                    except Exception:
-                        tmdb_id = None
+                    tmdb_id = int(gid.split("tmdb://")[1])
                     break
 
             if not tmdb_id:
 
                 no_tmdb_guid.append({
-                    "title": title,
-                    "year": year
+                    "title": v.attrib.get("title"),
+                    "year": v.attrib.get("year")
                 })
 
                 continue
