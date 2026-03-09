@@ -1,12 +1,23 @@
 version: "3.9"
 
 services:
-  plex-audit:
-    build: .
-    container_name: plex-audit
+
+  cineplete:
+    image: sdblepas/cineplete:latest
+    container_name: cineplete
+
     ports:
       - "8787:8787"
+
     volumes:
-      - /volume1/Docker/plex-audit/config:/app/config
-      - /volume1/Docker/plex-audit/data:/app/data
+      - /volume1/Docker/cineplete/config:/config
+      - /volume1/Docker/cineplete/data:/data
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8787"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
     restart: unless-stopped
