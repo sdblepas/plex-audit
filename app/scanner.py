@@ -10,7 +10,7 @@ from app.plex_xml import scan_movies
 from app.tmdb import TMDB
 from app.overrides import load_json, save_json, remove_value
 
-DATA_DIR = "/app/data"
+DATA_DIR = "/data"
 RESULTS_FILE = f"{DATA_DIR}/results.json"
 OVERRIDES_FILE = f"{DATA_DIR}/overrides.json"
 

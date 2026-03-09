@@ -9,7 +9,7 @@ from app.config import load_config, save_config, is_configured
 from app.scanner import build, build_async, scan_state
 from app.overrides import load_json, save_json, add_unique, remove_value
 
-DATA_DIR = "/app/data"
+DATA_DIR = "/data"
 RESULTS_FILE = f"{DATA_DIR}/results.json"
 OVERRIDES_FILE = f"{DATA_DIR}/overrides.json"
 

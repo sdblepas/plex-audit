@@ -3,7 +3,7 @@ import time
 import json
 import os
 
-DATA_DIR = "/app/data"
+DATA_DIR = "/data"
 CACHE_FILE = f"{DATA_DIR}/tmdb_cache.json"
 
 # Flush cache to disk every N real HTTP calls so a crash doesn't lose all progress
