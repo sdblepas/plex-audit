@@ -1,71 +1,708 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Plex Audit</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Cineplete</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root {
+      --gold:       #F5C518;
+      --gold-dim:   #c9a012;
+      --gold-glow:  rgba(245,197,24,0.15);
+      --bg:         #0e0e10;
+      --bg2:        #141416;
+      --bg3:        #1a1a1e;
+      --border:     #2a2a30;
+      --border2:    #323238;
+      --text:       #e8e8f0;
+      --text2:      #9090a0;
+      --text3:      #606070;
+      --red:        #ef4444;
+      --amber:      #f59e0b;
+      --green:      #22c55e;
+      --blue:       #3b82f6;
+      --purple:     #a855f7;
+      --sidebar-w:  240px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 14px;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* grain overlay */
+    body::before {
+      content: "";
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 9999;
+      opacity: .4;
+    }
+
+    /* ── SIDEBAR ──────────────────────────────── */
+    #sidebar {
+      position: fixed; top: 0; left: 0; bottom: 0;
+      width: var(--sidebar-w);
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      z-index: 100;
+      transition: transform .25s ease;
+    }
+
+    #sidebar-logo {
+      padding: 1.4rem 1.2rem 1rem;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: .7rem;
+    }
+
+    .logo-icon {
+      width: 32px; height: 32px;
+      background: var(--gold);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .logo-text {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 1.15rem;
+      letter-spacing: -.02em;
+      color: var(--text);
+    }
+
+    .logo-text span { color: var(--gold); }
+
+    #sidebar nav {
+      flex: 1;
+      padding: .75rem .6rem;
+      overflow-y: auto;
+    }
+
+    .nav-section {
+      font-size: .6rem;
+      font-weight: 500;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--text3);
+      padding: .9rem .6rem .4rem;
+    }
+
+    .nav {
+      display: flex; align-items: center; gap: .65rem;
+      width: 100%; text-align: left;
+      padding: .55rem .75rem;
+      border-radius: 7px;
+      color: var(--text2);
+      font-family: 'DM Mono', monospace;
+      font-size: .8rem;
+      cursor: pointer;
+      border: none; background: none;
+      transition: background .15s, color .15s;
+      position: relative;
+    }
+
+    .nav:hover { background: var(--bg3); color: var(--text); }
+
+    .nav.active {
+      background: var(--gold-glow);
+      color: var(--gold);
+      border: 1px solid rgba(245,197,24,.2);
+    }
+
+    .nav.active .nav-icon { color: var(--gold); }
+
+    .nav-icon {
+      width: 16px; height: 16px;
+      flex-shrink: 0; opacity: .7;
+    }
+
+    .nav.active .nav-icon { opacity: 1; }
+
+    .nav-badge {
+      margin-left: auto;
+      font-size: .6rem;
+      background: var(--red);
+      color: #fff;
+      padding: 1px 5px;
+      border-radius: 10px;
+      font-weight: 500;
+    }
+
+    #sidebar-footer {
+      padding: 1rem 1.2rem;
+      border-top: 1px solid var(--border);
+    }
+
+    #scanBtn {
+      width: 100%;
+      padding: .6rem;
+      background: var(--gold);
+      color: #000;
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: .82rem;
+      letter-spacing: .04em;
+      border: none; border-radius: 8px;
+      cursor: pointer;
+      transition: background .15s, transform .1s;
+    }
+
+    #scanBtn:hover { background: var(--gold-dim); }
+    #scanBtn:active { transform: scale(.97); }
+
+    #status {
+      font-size: .65rem;
+      color: var(--text3);
+      margin-top: .5rem;
+      text-align: center;
+      font-family: 'DM Mono', monospace;
+    }
+
+    .version {
+      font-size: .6rem;
+      color: var(--text3);
+      text-align: center;
+      margin-top: .4rem;
+    }
+
+    /* ── MAIN ─────────────────────────────────── */
+    #main {
+      margin-left: var(--sidebar-w);
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+    }
+
+    #topbar {
+      position: sticky; top: 0;
+      background: rgba(14,14,16,.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: .85rem 1.75rem;
+      display: flex; align-items: center; gap: 1rem;
+      z-index: 50;
+      min-height: 56px;
+    }
+
+    #page-title {
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 1rem;
+      color: var(--text);
+      margin-right: auto;
+    }
+
+    #topFilters {
+      display: flex; align-items: center; gap: .6rem;
+      flex-wrap: wrap;
+    }
+
+    #topFilters input,
+    #topFilters select {
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      border-radius: 7px;
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: .78rem;
+      padding: .4rem .75rem;
+      outline: none;
+      transition: border-color .15s;
+    }
+
+    #topFilters input:focus,
+    #topFilters select:focus { border-color: var(--gold); }
+
+    #topFilters input { width: 220px; }
+
+    #content {
+      padding: 1.5rem 1.75rem;
+      flex: 1;
+    }
+
+    /* ── CARDS ────────────────────────────────── */
+    .card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.1rem 1.2rem;
+    }
+
+    .card-title {
+      font-size: .62rem;
+      font-weight: 500;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--text3);
+      margin-bottom: .85rem;
+    }
+
+    /* ── MOVIE POSTER CARD ────────────────────── */
+    .movie-card {
+      position: relative;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      transition: border-color .2s, transform .2s;
+      cursor: default;
+    }
+
+    .movie-card:hover {
+      border-color: var(--border2);
+      transform: translateY(-2px);
+    }
+
+    .movie-card-inner {
+      display: flex; gap: 0;
+    }
+
+    .movie-poster {
+      width: 72px;
+      min-height: 108px;
+      flex-shrink: 0;
+      object-fit: cover;
+      background: var(--bg2);
+    }
+
+    .movie-poster-placeholder {
+      width: 72px;
+      min-height: 108px;
+      flex-shrink: 0;
+      background: var(--bg2);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text3);
+      font-size: .6rem;
+      text-align: center;
+      padding: .5rem;
+    }
+
+    .movie-body {
+      flex: 1;
+      padding: .75rem .85rem;
+      display: flex; flex-direction: column; gap: .35rem;
+      min-width: 0;
+    }
+
+    .movie-title {
+      font-family: 'Syne', sans-serif;
+      font-weight: 600;
+      font-size: .88rem;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .movie-year {
+      color: var(--text3);
+      font-weight: 400;
+      font-size: .78rem;
+    }
+
+    .movie-meta {
+      display: flex; flex-wrap: wrap; gap: .3rem;
+      margin-top: .1rem;
+    }
+
+    .tag {
+      font-size: .62rem;
+      padding: 2px 7px;
+      border-radius: 5px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text2);
+      font-family: 'DM Mono', monospace;
+    }
+
+    .tag-gold  { border-color: rgba(245,197,24,.3); color: var(--gold); }
+    .tag-green { border-color: rgba(34,197,94,.3);  color: var(--green); }
+    .tag-red   { border-color: rgba(239,68,68,.3);  color: var(--red); }
+
+    .movie-actions {
+      display: flex; gap: .4rem;
+      margin-top: .3rem;
+    }
+
+    .btn-sm {
+      font-size: .65rem;
+      padding: 3px 10px;
+      border-radius: 5px;
+      border: 1px solid var(--border2);
+      background: var(--bg);
+      color: var(--text2);
+      cursor: pointer;
+      font-family: 'DM Mono', monospace;
+      transition: background .15s, color .15s, border-color .15s;
+    }
+
+    .btn-sm:hover { background: var(--bg3); color: var(--text); }
+
+    .btn-wishlist        { border-color: rgba(245,197,24,.3); color: var(--gold); }
+    .btn-wishlist:hover  { background: var(--gold-glow); }
+    .btn-radarr          { border-color: rgba(34,197,94,.3);  color: var(--green); }
+    .btn-radarr:hover    { background: rgba(34,197,94,.1); }
+    .btn-ignore          { border-color: rgba(239,68,68,.2);  color: var(--text3); }
+    .btn-ignore:hover    { border-color: var(--red); color: var(--red); background: rgba(239,68,68,.08); }
+
+    /* wishlist active state */
+    .btn-wishlisted { border-color: var(--gold); color: var(--gold); background: var(--gold-glow); }
+
+    /* ── GROUP HEADER ─────────────────────────── */
+    .group-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: .85rem;
+      padding-bottom: .6rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .group-name {
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 1rem;
+      color: var(--text);
+    }
+
+    .group-count {
+      font-size: .72rem;
+      color: var(--text3);
+      margin-left: .5rem;
+    }
+
+    /* ── SCORE CARD ───────────────────────────── */
+    .score-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.1rem 1.2rem;
+    }
+
+    .score-label {
+      font-size: .62rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--text3);
+      margin-bottom: .4rem;
+    }
+
+    .score-value {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 2rem;
+      line-height: 1;
+      letter-spacing: -.04em;
+    }
+
+    .score-bar-wrap {
+      height: 3px;
+      background: var(--border);
+      border-radius: 3px;
+      margin-top: .65rem;
+      overflow: hidden;
+    }
+
+    .score-bar {
+      height: 3px;
+      border-radius: 3px;
+      transition: width 1s cubic-bezier(.4,0,.2,1);
+    }
+
+    /* ── STAT ROW ─────────────────────────────── */
+    .stat-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: .42rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: .8rem;
+    }
+    .stat-row:last-child { border-bottom: none; }
+    .stat-label { color: var(--text2); }
+    .stat-val   { font-weight: 500; color: var(--text); }
+
+    /* ── EMPTY STATE ──────────────────────────── */
+    .empty-state {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: .75rem;
+      padding: 4rem 2rem;
+      color: var(--text3);
+      text-align: center;
+    }
+
+    .empty-icon {
+      font-size: 2.5rem;
+      opacity: .4;
+    }
+
+    .empty-title {
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: .95rem;
+      color: var(--text2);
+    }
+
+    .empty-sub { font-size: .78rem; }
+
+    /* ── SKELETON ─────────────────────────────── */
+    @keyframes shimmer {
+      0%   { background-position: -600px 0; }
+      100% { background-position:  600px 0; }
+    }
+
+    .skeleton {
+      background: linear-gradient(90deg, var(--bg3) 25%, var(--bg2) 50%, var(--bg3) 75%);
+      background-size: 600px 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 6px;
+    }
+
+    /* ── TOAST ────────────────────────────────── */
+    #toastContainer {
+      position: fixed; bottom: 1.5rem; right: 1.5rem;
+      display: flex; flex-direction: column; gap: .5rem;
+      z-index: 10000;
+      pointer-events: none;
+    }
+
+    .toast {
+      display: flex; align-items: center; gap: .6rem;
+      padding: .65rem 1rem;
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-radius: 9px;
+      font-size: .78rem;
+      color: var(--text);
+      box-shadow: 0 4px 20px rgba(0,0,0,.5);
+      pointer-events: all;
+      animation: toastIn .25s ease;
+      max-width: 300px;
+    }
+
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(8px) scale(.97); }
+      to   { opacity: 1; transform: translateY(0)   scale(1); }
+    }
+
+    .toast.fade-out {
+      animation: toastOut .3s ease forwards;
+    }
+
+    @keyframes toastOut {
+      to { opacity: 0; transform: translateY(4px); }
+    }
+
+    .toast-dot {
+      width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+    }
+
+    /* ── SCAN PROGRESS ────────────────────────── */
+    #scanProgress {
+      position: fixed; bottom: 1.5rem; left: calc(var(--sidebar-w) + 1.5rem);
+      width: 300px;
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-radius: 10px;
+      padding: 1rem;
+      z-index: 999;
+      box-shadow: 0 4px 24px rgba(0,0,0,.6);
+    }
+
+    /* ── CONFIG FORM ──────────────────────────── */
+    .form-group { margin-bottom: 1rem; }
+
+    .form-label {
+      display: block;
+      font-size: .7rem;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--text3);
+      margin-bottom: .4rem;
+    }
+
+    .form-input {
+      width: 100%;
+      background: var(--bg3);
+      border: 1px solid var(--border2);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: .82rem;
+      padding: .55rem .85rem;
+      outline: none;
+      transition: border-color .15s;
+    }
+
+    .form-input:focus { border-color: var(--gold); }
+
+    .form-section {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.2rem;
+      margin-bottom: 1rem;
+    }
+
+    .form-section-title {
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: .9rem;
+      color: var(--text);
+      margin-bottom: 1rem;
+    }
+
+    .btn-primary {
+      width: 100%;
+      padding: .7rem;
+      background: var(--gold);
+      color: #000;
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: .85rem;
+      letter-spacing: .04em;
+      border: none; border-radius: 8px;
+      cursor: pointer;
+      transition: background .15s;
+    }
+
+    .btn-primary:hover { background: var(--gold-dim); }
+
+    /* ── METADATA ITEM ────────────────────────── */
+    .meta-item {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: .65rem 1rem;
+      display: flex; align-items: center;
+      gap: .75rem;
+    }
+
+    .meta-item-title { font-weight: 500; color: var(--text); }
+    .meta-item-year  { color: var(--text3); font-size: .78rem; margin-left: .4rem; }
+
+    /* ── GRIDS ────────────────────────────────── */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .85rem; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4,1fr); gap: .85rem; }
+    .grid-31{ display: grid; grid-template-columns: 2fr 1fr 1fr; gap: .85rem; }
+
+    @media(max-width:1100px){
+      .grid-4  { grid-template-columns: 1fr 1fr; }
+      .grid-31 { grid-template-columns: 1fr 1fr; }
+    }
+    @media(max-width:800px){
+      .grid-2,.grid-3,.grid-4,.grid-31 { grid-template-columns: 1fr; }
+      #sidebar { transform: translateX(-100%); }
+      #main    { margin-left: 0; }
+    }
+
+    /* ── SCROLLBAR ────────────────────────────── */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+    /* ── DETAILS/SUMMARY ──────────────────────── */
+    details > summary { cursor: pointer; list-style: none; }
+    details > summary::-webkit-details-marker { display: none; }
+    details[open] > summary .chevron { transform: rotate(180deg); }
+    .chevron { transition: transform .2s; display: inline-block; margin-left: .3rem; }
+  </style>
 </head>
 
-<body class="bg-zinc-950 text-zinc-100">
-  <div class="flex min-h-screen">
-    <aside class="w-64 bg-zinc-900 border-r border-zinc-800 p-4">
-      <div class="text-xl font-semibold mb-6">Plex Audit</div>
-
-      <nav class="space-y-2" id="sidebarNav">
-        <button class="nav w-full text-left px-3 py-2 rounded bg-zinc-800" data-tab="dashboard">Dashboard</button>
-
-        <div class="pt-2 text-xs uppercase tracking-wide text-zinc-500">Metadata health</div>
-        <button class="nav w-full text-left px-3 py-2 rounded hover:bg-zinc-800" data-tab="notmdb">No TMDB GUID</button>
-        <button class="nav w-full text-left px-3 py-2 rounded hover:bg-zinc-800" data-tab="nomatch">TMDB No Match</button>
-
-        <div class="pt-2 text-xs uppercase tracking-wide text-zinc-500">Missing</div>
-        <button class="nav w-full text-left px-3 py-2 rounded hover:bg-zinc-800" data-tab="franchises">Franchises</button>
-        <button class="nav w-full text-left px-3 py-2 rounded hover:bg-zinc-800" data-tab="directors">Directors</button>
-        <button class="nav w-full text-left px-3 py-2 rounded hover:bg-zinc-800" data-tab="actors">Actors</button>
-        <button class="nav w-full text-left px-3 py-2 rounded hover:bg-zinc-800" data-tab="classics">Classics</button>
-        <button class="nav w-full text-left px-3 py-2 rounded hover:bg-zinc-800" data-tab="suggestions">Suggestions TMDB</button>
-        <button class="nav w-full text-left px-3 py-2 rounded hover:bg-zinc-800" data-tab="wishlist">Wishlist</button>
-
-        <div class="pt-2 text-xs uppercase tracking-wide text-zinc-500">Settings</div>
-        <button class="nav w-full text-left px-3 py-2 rounded hover:bg-zinc-800" data-tab="config">Config</button>
-      </nav>
-
-      <div class="mt-6 space-y-2">
-        <button id="scanBtn" class="w-full px-3 py-2 rounded bg-emerald-600 hover:bg-emerald-500 text-black font-semibold">
-          Rescan
-        </button>
-        <div class="text-xs text-zinc-400" id="status"></div>
+<body>
+  <!-- SIDEBAR -->
+  <aside id="sidebar">
+    <div id="sidebar-logo">
+      <div class="logo-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="2" width="20" height="20" rx="3"/>
+          <path d="M7 2v20M17 2v20M2 12h20M2 7h5M2 17h5M17 7h5M17 17h5"/>
+        </svg>
       </div>
-    </aside>
+      <div class="logo-text">Cine<span>plete</span></div>
+    </div>
 
-    <main class="flex-1 p-6">
-      <div id="topFilters" class="flex flex-wrap gap-3 items-center mb-6">
-        <input id="search" class="bg-zinc-900 border border-zinc-800 rounded px-3 py-2 w-80"
-               placeholder="Search title / group..." />
+    <nav>
+      <button class="nav active" data-tab="dashboard">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Dashboard
+      </button>
 
-        <select id="yearFilter" class="bg-zinc-900 border border-zinc-800 rounded px-3 py-2">
-          <option value="">All years</option>
-          <option value="2020s">2020s</option>
-          <option value="2010s">2010s</option>
-          <option value="2000s">2000s</option>
-          <option value="1990s">1990s</option>
-          <option value="older">Older</option>
-        </select>
+      <div class="nav-section">Metadata Health</div>
+      <button class="nav" data-tab="notmdb">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+        No TMDB GUID
+        <span class="nav-badge" id="badge-notmdb" style="display:none"></span>
+      </button>
+      <button class="nav" data-tab="nomatch">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+        TMDB No Match
+        <span class="nav-badge" id="badge-nomatch" style="display:none"></span>
+      </button>
 
-        <select id="sort" class="bg-zinc-900 border border-zinc-800 rounded px-3 py-2">
-          <option value="popularity">Sort: popularity</option>
-          <option value="rating">Sort: rating</option>
-          <option value="votes">Sort: votes</option>
-          <option value="year">Sort: year</option>
-          <option value="title">Sort: title</option>
-        </select>
-      </div>
+      <div class="nav-section">Missing</div>
+      <button class="nav" data-tab="franchises">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M15 10l4.553-2.069A1 1 0 0121 8.87V19a1 1 0 01-1.447.894L15 17M3 8a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/></svg>
+        Franchises
+      </button>
+      <button class="nav" data-tab="directors">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M15 10l4.553-2.069A1 1 0 0121 8.87V19a1 1 0 01-1.447.894L15 17M3 8a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/><circle cx="9" cy="12" r="2"/></svg>
+        Directors
+      </button>
+      <button class="nav" data-tab="actors">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+        Actors
+      </button>
+      <button class="nav" data-tab="classics">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        Classics
+      </button>
+      <button class="nav" data-tab="suggestions">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        Suggestions
+      </button>
+      <button class="nav" data-tab="wishlist">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+        Wishlist
+        <span class="nav-badge" id="badge-wishlist" style="display:none"></span>
+      </button>
 
-      <div id="content"></div>
-    </main>
+      <div class="nav-section">Settings</div>
+      <button class="nav" data-tab="config">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        Config
+      </button>
+    </nav>
+
+    <div id="sidebar-footer">
+      <button id="scanBtn">⟳ Rescan Library</button>
+      <div id="status">Ready</div>
+      <div class="version">v2.0 · Cineplete</div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div id="main">
+    <header id="topbar">
+      <div id="page-title">Dashboard</div>
+      <div id="topFilters" style="display:none"></div>
+    </header>
+    <div id="content"></div>
   </div>
+
+  <!-- TOAST CONTAINER -->
+  <div id="toastContainer"></div>
 
   <script src="/static/app.js"></script>
 </body>
