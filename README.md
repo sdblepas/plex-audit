@@ -1,4 +1,4 @@
-# 🎬 Plex Movie Audit
+# 🎬 CinePlete a Plex Movie Audit
 
 ![Docker](https://img.shields.io/badge/docker-ready-blue)
 ![Python](https://img.shields.io/badge/python-3.11-green)
