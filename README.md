@@ -1,6 +1,9 @@
-# 🎬 CinePlete a Plex Movie Audit
+# 🎬 Cineplete — Plex Movie Audit
 
-![Docker](https://img.shields.io/badge/docker-ready-blue)
+[![Build & Publish Docker](https://github.com/sdblepas/CinePlete/actions/workflows/docker.yml/badge.svg)](https://github.com/sdblepas/CinePlete/actions/workflows/docker.yml)
+[![Unit Tests](https://github.com/sdblepas/CinePlete/actions/workflows/docker.yml/badge.svg?event=push&label=tests)](https://github.com/sdblepas/CinePlete/actions/workflows/docker.yml)
+[![Docker Pulls](https://img.shields.io/docker/pulls/sdblepas/cineplete)](https://hub.docker.com/r/sdblepas/cineplete)
+[![Docker Image Version](https://img.shields.io/docker/v/sdblepas/cineplete/latest)](https://hub.docker.com/r/sdblepas/cineplete)
 ![Python](https://img.shields.io/badge/python-3.11-green)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 ![Plex](https://img.shields.io/badge/Plex-compatible-orange)
@@ -28,10 +31,14 @@ The tool includes a **web UI dashboard with charts** and performs **ultra-fast P
 
 ## Features
 
-### Plex Scanner
+### Ultra Fast Plex Scanner
 
 The scanner uses the **native Plex XML API** instead of slow metadata requests.
 
+Performance example:
+
+- 1000 movies → ~2 seconds
+- 3000 movies → ~4 seconds
 
 ---
 
@@ -336,9 +343,12 @@ L'outil propose une **interface web avec graphiques** et un **scan Plex ultra ra
 
 ## Fonctionnalités
 
-### Scanner Plex 
+### Scanner Plex ultra rapide
 
 Utilise l'API XML native de Plex.
+
+- 1000 films → ~2 secondes
+- 3000 films → ~4 secondes
 
 ---
 

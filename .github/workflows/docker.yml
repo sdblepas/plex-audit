@@ -45,12 +45,36 @@ jobs:
           severity: CRITICAL,HIGH
           exit-code: 1
 
+
   # ─────────────────────────────────────────────
-  # 2. COMPUTE VERSION
+  # 2. UNIT TESTS
+  # ─────────────────────────────────────────────
+  test:
+    name: Unit Tests
+    needs: scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install pytest pyyaml
+
+      - name: Run tests
+        run: pytest --tb=short -v
+
+  # ─────────────────────────────────────────────
+  # 3. COMPUTE VERSION
   # ─────────────────────────────────────────────
   version:
     name: Compute Version
-    needs: scan
+    needs: test
     runs-on: ubuntu-latest
     outputs:
       version:  ${{ steps.resolve.outputs.version }}
