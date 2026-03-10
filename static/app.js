@@ -962,6 +962,13 @@ document.addEventListener("keydown", e=>{
 async function boot(){
   await loadConfig()
   await loadStatus()
+
+  // Display real version from server
+  try {
+    const v = await api("/api/version")
+    document.querySelector(".version").textContent = `${v.version} · Cineplete`
+  } catch(e) {}
+
   if (CONFIGURED) await loadResults()
   else { setStatus("Setup required"); render() }
 }

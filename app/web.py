@@ -13,6 +13,8 @@ DATA_DIR = "/data"
 RESULTS_FILE = f"{DATA_DIR}/results.json"
 OVERRIDES_FILE = f"{DATA_DIR}/overrides.json"
 
+APP_VERSION = os.getenv("APP_VERSION", "dev")
+
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="/app/static"), name="static")
 
@@ -41,6 +43,15 @@ def current_radarr() -> dict:
 def index():
     with open("/app/static/index.html", "r", encoding="utf-8") as f:
         return f.read()
+
+
+# --------------------------------------------------
+# Version
+# --------------------------------------------------
+
+@app.get("/api/version")
+def api_version():
+    return {"version": APP_VERSION}
 
 
 # --------------------------------------------------

@@ -188,6 +188,7 @@ jobs:
         with:
           context: .
           push: true
+          build-args: VERSION=${{ needs.version.outputs.version }}
           tags: |
             sdblepas/cineplete:latest
             sdblepas/cineplete:${{ needs.version.outputs.version }}
@@ -201,6 +202,7 @@ jobs:
         with:
           context: .
           push: true
+          build-args: VERSION=${{ needs.version.outputs.version }}
           tags: |
             sdblepas/cineplete:STG
             sdblepas/cineplete:${{ needs.version.outputs.version }}

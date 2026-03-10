@@ -1,5 +1,8 @@
 FROM python:3.11-slim
 
+ARG VERSION=dev
+ENV APP_VERSION=$VERSION
+
 WORKDIR /app
 
 COPY app /app/app
