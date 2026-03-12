@@ -1,18 +1,35 @@
 # 🎬 Cineplete — Plex Movie Audit
 
 [![Build & Publish Docker](https://github.com/sdblepas/CinePlete/actions/workflows/docker.yml/badge.svg)](https://github.com/sdblepas/CinePlete/actions/workflows/docker.yml)
-[![Unit Tests](https://github.com/sdblepas/CinePlete/actions/workflows/docker.yml/badge.svg?event=push&label=tests)](https://github.com/sdblepas/CinePlete/actions/workflows/docker.yml)
 [![Docker Pulls](https://img.shields.io/docker/pulls/sdblepas/cineplete)](https://hub.docker.com/r/sdblepas/cineplete)
 [![Docker Image Version](https://img.shields.io/docker/v/sdblepas/cineplete/latest)](https://hub.docker.com/r/sdblepas/cineplete)
-![Python](https://img.shields.io/badge/python-3.11-green)
 ![License](https://img.shields.io/github/license/sdblepas/CinePlete)
-![Plex](https://img.shields.io/badge/Plex-compatible-orange)
-![TMDB](https://img.shields.io/badge/TMDB-API-blue)
 
+![Python](https://img.shields.io/badge/python-3.11-blue)
+![Self Hosted](https://img.shields.io/badge/self--hosted-ready-brightgreen)
+![Multi-Arch](https://img.shields.io/badge/docker-multiarch-blue)
+![FastAPI](https://img.shields.io/badge/FastAPI-powered-green)
+
+![Plex](https://img.shields.io/badge/Plex-compatible-orange)
+![Radarr](https://img.shields.io/badge/Radarr-integration-purple)
+![TMDB](https://img.shields.io/badge/TMDB-API-blue)
+![Homelab](https://img.shields.io/badge/homelab-friendly-blue)
+![GitHub Stars](https://img.shields.io/github/stars/sdblepas/CinePlete?style=social)
 ---
 
 # 🇬🇧 English
 
+Ever wondered **which movies you're missing** from your favorite franchises, directors, or actors?
+
+**Cineplete scans your Plex library in seconds and shows exactly what's missing.**
+
+✔ Missing movies from franchises  
+✔ Missing films from directors you collect  
+✔ Popular movies from actors already in your library  
+✔ Classic films missing from your collection  
+✔ Tailor-made suggestions based on your library  
+
+All in a **beautiful dashboard with charts and Radarr integration.**
 ## Overview
 
 **Plex Movie Audit** is a local analysis tool that scans your Plex movie library and identifies:
