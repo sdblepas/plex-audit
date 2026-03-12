@@ -15,6 +15,7 @@
 ![TMDB](https://img.shields.io/badge/TMDB-API-blue)
 ![Homelab](https://img.shields.io/badge/homelab-friendly-blue)
 ![GitHub Stars](https://img.shields.io/github/stars/sdblepas/CinePlete?style=social)
+
 ---
 
 # 🇬🇧 English
@@ -32,19 +33,21 @@ Ever wondered **which movies you're missing** from your favorite franchises, dir
 All in a **beautiful dashboard with charts and Radarr integration.**
 
 ![Cineplete Demo](assets/Demo.gif)
+
 ## Overview
 
-**Plex Movie Audit** is a local analysis tool that scans your Plex movie library and identifies:
+**Cineplete** is a self-hosted Docker tool that scans your Plex movie library and identifies:
 
 - Missing movies from franchises
 - Missing films from directors you already collect
 - Popular films from actors already present in your library
 - Classic movies missing from your collection
+- Personalized suggestions based on what your library recommends
 - Metadata issues in Plex (missing TMDB GUID or broken matches)
 - Wishlist management
 - Direct Radarr integration
 
-The tool includes a **web UI dashboard with charts** and performs **ultra-fast Plex scans (~2 seconds)**.
+The tool includes a **web UI dashboard with charts**, a **Logs tab** for diagnostics, and performs **ultra-fast Plex scans (~2 seconds)**.
 
 ---
 
@@ -136,9 +139,15 @@ vote_count >= 5000
 
 ---
 
-### Suggestions TMDB
+### Suggestions
 
-Full list of TMDB Top Rated films not yet in your library, sorted by rating.
+Personalized movie recommendations based on **your own library**.
+
+For each film in your Plex library, Cineplete fetches TMDB recommendations and scores each suggested title by how many of your films recommended it. A film recommended by 30 of your movies ranks higher than one recommended by 2.
+
+Each suggestion card shows a **⚡ N matches** badge so you can see at a glance how strongly your library points to it.
+
+API calls are cached permanently — only newly added films incur real HTTP calls on subsequent scans.
 
 ---
 
@@ -158,10 +167,10 @@ data/overrides.json
 
 ### Metadata Diagnostics
 
-**No TMDB GUID** — Movies without TMDB metadata.
+**No TMDB GUID** — Movies without TMDB metadata.  
 Fix inside Plex: `Fix Match → TheMovieDB`
 
-**TMDB No Match** — Films with an invalid TMDB ID that returns no data.
+**TMDB No Match** — Films with an invalid TMDB ID that returns no data. The Plex title is shown so you can identify the film immediately.  
 Fix: Refresh metadata or fix match manually in Plex.
 
 ---
@@ -193,16 +202,24 @@ All tabs support live filtering:
 
 Clicking **Rescan** launches a background scan immediately without blocking the UI.
 
-A live progress card appears (bottom-right) showing:
+A live progress card appears showing:
 
 ```
-Step 3/7 — Analyzing collections
+Step 3/8 — Analyzing collections
 [=====>      ] 43%
 ```
 
 The progress card disappears automatically when the scan completes.
 
 Only one scan can run at a time. Concurrent scan requests are rejected cleanly.
+
+---
+
+### Logs
+
+A dedicated **Logs tab** shows the last 200 lines of `/data/cineplete.log` with color-coded severity levels (ERROR in red, WARNING in amber). Useful for diagnosing scan issues, TMDB API errors, and Plex connectivity problems.
+
+The log file rotates automatically (2 MB × 3 files) and never fills your disk.
 
 ---
 
@@ -227,7 +244,9 @@ Configuration is stored in `config/config.yml` and editable from the **Config** 
 | `PLEX_URL` | URL of your Plex server |
 | `PLEX_TOKEN` | Plex authentication token |
 | `LIBRARY_NAME` | Name of the movie library |
-| `TMDB_API_KEY` | TMDB v3 API key |
+| `TMDB_API_KEY` | TMDB classic API Key (v3) — **not** the Read Access Token |
+
+> ⚠️ Use the **API Key** found under TMDB → Settings → API → **API Key** (short alphanumeric string starting with letters/numbers). Do **not** use the Read Access Token (long JWT string starting with `eyJ`).
 
 **Advanced settings** (accessible via the UI "Advanced settings" section):
 
@@ -241,18 +260,49 @@ Configuration is stored in `config/config.yml` and editable from the **Config** 
 | `ACTOR_MAX_RESULTS_PER_ACTOR` | 10 | Max missing films shown per actor |
 | `PLEX_PAGE_SIZE` | 500 | Plex API page size |
 | `SHORT_MOVIE_LIMIT` | 60 | Films shorter than this (minutes) are ignored |
+| `SUGGESTIONS_MAX_RESULTS` | 100 | Maximum suggestions to return |
+| `SUGGESTIONS_MIN_SCORE` | 2 | Minimum number of your films that must recommend a suggestion |
 
 ---
 
 ## Installation
 
-Create folder:
+### Docker Compose (recommended)
 
-```
-/volume1/Docker/plex-audit
+```yaml
+version: "3.9"
+services:
+  cineplete:
+    image: sdblepas/cineplete:latest
+    container_name: cineplete
+    ports:
+      - "8787:8787"
+    volumes:
+      - /path/to/config:/config
+      - /path/to/data:/data
+    labels:
+      net.unraid.docker.webui: "http://[IP]:[PORT:8787]"
+      net.unraid.docker.icon: "https://raw.githubusercontent.com/sdblepas/CinePlete/main/assets/icon.png"
+      org.opencontainers.image.url: "http://localhost:8787"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8787')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
 ```
 
-Copy project files and start:
+**Port conflict?** Add `APP_PORT` to change the internal port:
+
+```yaml
+environment:
+  - APP_PORT=8788
+ports:
+  - "8788:8788"
+```
+
+Start:
 
 ```bash
 docker compose up -d
@@ -261,7 +311,7 @@ docker compose up -d
 Open UI:
 
 ```
-http://NAS:8787
+http://YOUR_NAS_IP:8787
 ```
 
 ---
@@ -269,25 +319,46 @@ http://NAS:8787
 ## Project Structure
 
 ```
-plex-audit/
-├── docker-compose.yml
+CinePlete/
+├── .github/
+│   └── workflows/
+│       └── docker.yml        # CI/CD pipeline (scan → test → version → build)
 ├── app/
-│   ├── web.py         # FastAPI backend
-│   ├── scanner.py     # Main scan engine (async, threaded)
-│   ├── plex_xml.py    # Plex XML API scanner
-│   ├── tmdb.py        # TMDB API client (cached, key-safe)
-│   ├── overrides.py   # Ignore/wishlist helpers
-│   └── config.py      # Config loader/saver
+│   ├── web.py                # FastAPI backend + all API endpoints
+│   ├── scanner.py            # 8-step scan engine (threaded)
+│   ├── plex_xml.py           # Plex XML API scanner
+│   ├── tmdb.py               # TMDB API client (cached, key-safe, error logging)
+│   ├── overrides.py          # Ignore/wishlist/rec_fetched_ids helpers
+│   ├── config.py             # Config loader/saver with deep-merge
+│   └── logger.py             # Shared rotating logger (console + file)
 ├── static/
-│   ├── index.html
-│   └── app.js
+│   ├── index.html            # Single-page app shell + all CSS
+│   └── app.js                # All UI logic: routing, rendering, API calls
+├── assets/
+│   └── icon.png              # App icon (used by Unraid WebUI label)
 ├── config/
-│   └── config.yml
-└── data/
-    ├── overrides.json
-    ├── results.json
-    └── tmdb_cache.json
+│   └── config.yml            # Default config template
+├── tests/
+│   ├── test_config.py
+│   ├── test_overrides.py
+│   └── test_scoring.py
+├── docker-compose.yml
+├── Dockerfile
+└── README.md
 ```
+
+---
+
+## Data Files
+
+All persistent data lives in the mounted `/data` volume and survives container updates:
+
+| File | Description |
+|------|-------------|
+| `results.json` | Full scan output — regenerated on each scan |
+| `tmdb_cache.json` | TMDB API response cache — persists between scans |
+| `overrides.json` | Ignored items, wishlist, rec_fetched_ids |
+| `cineplete.log` | Rotating log file (2 MB × 3 files) |
 
 ---
 
@@ -295,16 +366,19 @@ plex-audit/
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
+| GET | `/api/version` | Returns current app version |
 | GET | `/api/results` | Returns scan results (never blocks) |
 | POST | `/api/scan` | Starts a background scan |
-| GET | `/api/scan/status` | Returns live scan progress |
+| GET | `/api/scan/status` | Returns live scan progress (8 steps) |
 | GET | `/api/config` | Returns current config |
 | POST | `/api/config` | Saves config |
+| GET | `/api/config/status` | Returns `{configured: bool}` |
 | POST | `/api/ignore` | Ignores a movie / franchise / director / actor |
 | POST | `/api/unignore` | Removes an ignore |
 | POST | `/api/wishlist/add` | Adds a movie to wishlist |
 | POST | `/api/wishlist/remove` | Removes from wishlist |
 | POST | `/api/radarr/add` | Sends a movie to Radarr |
+| GET | `/api/logs` | Returns last N lines of cineplete.log |
 
 ---
 
@@ -312,7 +386,7 @@ plex-audit/
 
 - Python 3.11
 - FastAPI + Uvicorn
-- Docker
+- Docker (multi-arch: amd64 + arm64)
 - TMDB API v3
 - Plex XML API
 - Chart.js
@@ -327,17 +401,23 @@ Plex Server
      │
      │ XML API (~2s for 1000 movies)
      ▼
-Plex XML Scanner
+Plex XML Scanner  ──→  {tmdb_id: plex_title}
      │
-     │ TMDB API (cached, key-stripped, periodic flush)
+     │ TMDB API (cached, key-stripped, rotating log)
      ▼
-Async Scan Engine (background thread + progress state)
+8-Step Scan Engine (background thread + progress state)
+     │
+     ├── Franchises (TMDB collections)
+     ├── Directors (person_credits)
+     ├── Actors (person_credits)
+     ├── Classics (top_rated)
+     └── Suggestions (recommendations × library)
      │
      ▼
-FastAPI Backend
+FastAPI Backend  ──→  results.json
      │
      ▼
-Web UI Dashboard (charts, filters, wishlist, Radarr)
+Web UI Dashboard (charts, filters, wishlist, Radarr, logs)
 ```
 
 ---
@@ -346,17 +426,18 @@ Web UI Dashboard (charts, filters, wishlist, Radarr)
 
 ## Présentation
 
-**Plex Movie Audit** est un outil local permettant d'analyser une bibliothèque Plex et de détecter :
+**Cineplete** est un outil Docker auto-hébergé permettant d'analyser une bibliothèque Plex et de détecter :
 
 - Les films manquants dans les sagas
 - Les films manquants de réalisateurs déjà présents
 - Les films populaires d'acteurs présents
 - Les classiques absents
+- Les suggestions personnalisées basées sur votre bibliothèque
 - Les problèmes de métadonnées Plex
 - La gestion d'une wishlist
 - L'intégration Radarr
 
-L'outil propose une **interface web avec graphiques** et un **scan Plex ultra rapide (~2 secondes)**.
+L'outil propose une **interface web avec graphiques**, un **onglet Logs** pour le diagnostic, et un **scan Plex ultra rapide (~2 secondes)**.
 
 ---
 
@@ -434,9 +515,13 @@ vote_count >= 5000
 
 ---
 
-### Suggestions TMDB
+### Suggestions
 
-Liste complète des films Top Rated TMDB absents de la bibliothèque.
+Recommandations personnalisées basées sur **votre propre bibliothèque**.
+
+Pour chaque film de votre bibliothèque Plex, Cineplete récupère les recommandations TMDB et attribue un score à chaque suggestion selon combien de vos films la recommandent. Un badge **⚡ N correspondances** est affiché sur chaque carte.
+
+Les appels API sont mis en cache — seuls les nouveaux films ajoutés génèrent de vraies requêtes HTTP lors des scans suivants.
 
 ---
 
@@ -449,10 +534,10 @@ Stockée dans `data/overrides.json`.
 
 ### Diagnostic métadonnées
 
-**No TMDB GUID** — Films sans métadonnées TMDB.
+**No TMDB GUID** — Films sans métadonnées TMDB.  
 Correction dans Plex : `Corriger la correspondance → TheMovieDB`
 
-**TMDB No Match** — Films avec un ID TMDB invalide.
+**TMDB No Match** — Films avec un ID TMDB invalide. Le titre Plex est affiché pour identifier le film immédiatement.  
 Correction : Actualiser les métadonnées ou corriger manuellement.
 
 ---
@@ -478,14 +563,20 @@ Disponibles sur tous les onglets :
 
 Le bouton **Rescan** lance un scan en arrière-plan sans bloquer l'interface.
 
-Une carte de progression apparaît en bas à droite :
+Une carte de progression apparaît :
 ```
-Étape 3/7 — Analyzing collections
+Étape 3/8 — Analyzing collections
 [=====>      ] 43%
 ```
 
 Elle disparaît automatiquement à la fin du scan.
 Un seul scan peut tourner à la fois.
+
+---
+
+### Logs
+
+Un onglet **Logs** dédié affiche les 200 dernières lignes de `/data/cineplete.log` avec niveaux de sévérité colorés. Utile pour diagnostiquer les erreurs de scan, d'API TMDB ou de connectivité Plex.
 
 ---
 
@@ -508,9 +599,11 @@ Fichier : `config/config.yml` — éditable depuis l'onglet **Config** de l'inte
 | `PLEX_URL` | URL du serveur Plex |
 | `PLEX_TOKEN` | Token d'authentification Plex |
 | `LIBRARY_NAME` | Nom de la bibliothèque films |
-| `TMDB_API_KEY` | Clé API TMDB v3 |
+| `TMDB_API_KEY` | Clé API TMDB classique (v3) — **pas** le Read Access Token |
 
-**Paramètres avancés** (section "Advanced settings" dans l'interface) :
+> ⚠️ Utiliser la **clé API** disponible sous TMDB → Paramètres → API → **Clé API** (chaîne alphanumérique courte). Ne **pas** utiliser le Read Access Token (longue chaîne JWT commençant par `eyJ`).
+
+**Paramètres avancés :**
 
 | Clé | Défaut | Description |
 |-----|--------|-------------|
@@ -522,18 +615,12 @@ Fichier : `config/config.yml` — éditable depuis l'onglet **Config** de l'inte
 | `ACTOR_MAX_RESULTS_PER_ACTOR` | 10 | Nombre max de films par acteur |
 | `PLEX_PAGE_SIZE` | 500 | Taille de page API Plex |
 | `SHORT_MOVIE_LIMIT` | 60 | Films plus courts que cette durée (minutes) ignorés |
+| `SUGGESTIONS_MAX_RESULTS` | 100 | Nombre maximum de suggestions |
+| `SUGGESTIONS_MIN_SCORE` | 2 | Nombre minimum de vos films devant recommander une suggestion |
 
 ---
 
 ## Installation
-
-Créer le dossier :
-
-```
-/volume1/Docker/plex-audit
-```
-
-Copier les fichiers et démarrer :
 
 ```bash
 docker compose up -d
@@ -542,62 +629,8 @@ docker compose up -d
 Ouvrir l'interface :
 
 ```
-http://NAS:8787
+http://IP_DU_NAS:8787
 ```
-
----
-
-## Structure du projet
-
-```
-plex-audit/
-├── docker-compose.yml
-├── app/
-│   ├── web.py         # Backend FastAPI
-│   ├── scanner.py     # Moteur de scan (async, threadé)
-│   ├── plex_xml.py    # Scanner API XML Plex
-│   ├── tmdb.py        # Client API TMDB (cache, clé sécurisée)
-│   ├── overrides.py   # Helpers ignore/wishlist
-│   └── config.py      # Chargement/sauvegarde config
-├── static/
-│   ├── index.html
-│   └── app.js
-├── config/
-│   └── config.yml
-└── data/
-    ├── overrides.json
-    ├── results.json
-    └── tmdb_cache.json
-```
-
----
-
-## Endpoints API
-
-| Méthode | Endpoint | Description |
-|---------|----------|-------------|
-| GET | `/api/results` | Résultats du scan (non bloquant) |
-| POST | `/api/scan` | Lance un scan en arrière-plan |
-| GET | `/api/scan/status` | Progression du scan en direct |
-| GET | `/api/config` | Config actuelle |
-| POST | `/api/config` | Sauvegarde la config |
-| POST | `/api/ignore` | Ignore un film / saga / réalisateur / acteur |
-| POST | `/api/unignore` | Retire un ignore |
-| POST | `/api/wishlist/add` | Ajoute à la wishlist |
-| POST | `/api/wishlist/remove` | Retire de la wishlist |
-| POST | `/api/radarr/add` | Envoie un film à Radarr |
-
----
-
-## Technologies
-
-- Python 3.11
-- FastAPI + Uvicorn
-- Docker
-- API TMDB v3
-- API XML Plex
-- Chart.js
-- Tailwind CSS (CDN)
 
 ---
 
