@@ -36,6 +36,9 @@ DEFAULT_CONFIG = {
         "SUGGESTIONS_MAX_RESULTS": 100,
         "SUGGESTIONS_MIN_SCORE": 2,    # min number of your films that must recommend it
     },
+    "AUTOMATION": {
+        "LIBRARY_POLL_INTERVAL": 30,   # minutes between library size checks (0 = disabled)
+    },
     "RADARR": {
         "RADARR_ENABLED": False,
         "RADARR_URL": "",
@@ -43,6 +46,7 @@ DEFAULT_CONFIG = {
         "RADARR_ROOT_FOLDER_PATH": "",
         "RADARR_QUALITY_PROFILE_ID": 6,
         "RADARR_MONITORED": True,
+        "RADARR_SEARCH_ON_ADD": False,
     },
 }
 

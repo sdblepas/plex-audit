@@ -64,7 +64,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install pytest pyyaml
+          pip install pytest pyyaml apscheduler
 
       - name: Run tests
         run: pytest --tb=short -v

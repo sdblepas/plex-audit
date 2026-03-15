@@ -1,6 +1,8 @@
 import os
+from datetime import datetime
 import json
 import requests
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Body, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
@@ -9,6 +11,7 @@ from app.config import load_config, save_config, is_configured
 from app.scanner import build, build_async, scan_state
 from app.overrides import load_json, save_json, add_unique, remove_value
 from app.logger import get_logger
+from app import scheduler
 
 DATA_DIR       = "/data"
 RESULTS_FILE   = f"{DATA_DIR}/results.json"
@@ -18,7 +21,17 @@ LOG_FILE       = f"{DATA_DIR}/cineplete.log"
 APP_VERSION = os.getenv("APP_VERSION", "dev")
 
 log = get_logger(__name__)
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Start scheduler on boot
+    cfg      = load_config()
+    interval = int(cfg.get("AUTOMATION", {}).get("LIBRARY_POLL_INTERVAL", 30))
+    scheduler.start(interval)
+    yield
+    scheduler.stop()
+
+app = FastAPI(lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="/app/static"), name="static")
 
 
@@ -75,6 +88,7 @@ def api_config_status():
 @app.post("/api/config")
 def api_save_config(payload: dict = Body(...)):
     cfg = save_config(payload)
+    scheduler.restart()
     return {"ok": True, "configured": is_configured(cfg)}
 
 
@@ -141,6 +155,7 @@ def api_scan_status():
         "detail":         scan_state["detail"],
         "error":          scan_state["error"],
         "last_completed": scan_state["last_completed"],
+        "last_duration":  scan_state["last_duration"],
     }
 
 
@@ -228,7 +243,7 @@ def radarr_add(payload: dict = Body(...)):
         "qualityProfileId": int(radarr_cfg["RADARR_QUALITY_PROFILE_ID"]),
         "rootFolderPath":   radarr_cfg["RADARR_ROOT_FOLDER_PATH"],
         "monitored":        bool(radarr_cfg["RADARR_MONITORED"]),
-        "addOptions":       {"searchForMovie": False},
+        "addOptions":       {"searchForMovie": bool(radarr_cfg.get("RADARR_SEARCH_ON_ADD", False))},
     }
 
     headers = {"X-Api-Key": radarr_cfg["RADARR_API_KEY"]}
@@ -248,6 +263,37 @@ def radarr_add(payload: dict = Body(...)):
 
     return {"ok": True}
 
+
+
+# --------------------------------------------------
+# Cache
+# --------------------------------------------------
+
+@app.get("/api/cache/info")
+def api_cache_info():
+    """Return TMDB cache file age and size."""
+    cache_file = f"{DATA_DIR}/tmdb_cache.json"
+    try:
+        stat = os.stat(cache_file)
+        age_s = int(datetime.utcnow().timestamp() - stat.st_mtime)
+        size_mb = round(stat.st_size / 1024 / 1024, 1)
+        return {"exists": True, "age_seconds": age_s, "size_mb": size_mb}
+    except FileNotFoundError:
+        return {"exists": False, "age_seconds": None, "size_mb": 0}
+
+@app.post("/api/cache/clear")
+def api_cache_clear():
+    """Delete the TMDB cache file."""
+    cache_file = f"{DATA_DIR}/tmdb_cache.json"
+    try:
+        os.remove(cache_file)
+        log.info("TMDB cache cleared by user")
+        return {"ok": True}
+    except FileNotFoundError:
+        return {"ok": True, "message": "Cache was already empty"}
+    except Exception as e:
+        log.error(f"Could not clear cache: {e}")
+        return {"ok": False, "error": str(e)}
 
 # --------------------------------------------------
 # Logs
