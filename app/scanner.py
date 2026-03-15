@@ -30,6 +30,7 @@ scan_state = {
     "detail": "",
     "error": None,
     "last_completed": None,
+    "last_duration":  None,   # seconds
 }
 
 STEPS = [
@@ -507,9 +508,11 @@ def build_async():
     def _run():
         scan_state["running"] = True
         scan_state["error"]   = None
+        _start = datetime.utcnow()
         try:
             build()
             scan_state["last_completed"] = datetime.utcnow().isoformat() + "Z"
+            scan_state["last_duration"]  = round((datetime.utcnow() - _start).total_seconds())
         except Exception as e:
             log.exception("Scan failed")
             scan_state["error"] = str(e)

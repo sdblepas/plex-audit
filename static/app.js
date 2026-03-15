@@ -88,6 +88,13 @@ function fmtDate(iso){
   } catch(e){ return iso }
 }
 
+function fmtDuration(s){
+  if (!s && s !== 0) return ""
+  if (s < 60) return `${s}s`
+  const m = Math.floor(s/60), sec = s%60
+  return sec ? `${m}m ${sec}s` : `${m}m`
+}
+
 function setStatus(txt){ document.getElementById("status").textContent = txt }
 
 /* ============================================================
@@ -138,7 +145,10 @@ async function pollScanStatus(){
     if (s.error){ toast(`Scan failed: ${s.error}`,"error"); return }
     const data = await api("/api/results")
     DATA = data
-    setStatus(`Updated ${fmtDate(DATA.generated_at)}`)
+    const dur = s.last_duration ? ` · took ${fmtDuration(s.last_duration)}` : ""
+    setStatus(`Updated ${fmtDate(DATA.generated_at)}${dur}`)
+    const durEl = document.getElementById("last-duration")
+    if (durEl && s.last_duration) durEl.textContent = `Last scan took ${fmtDuration(s.last_duration)}`
     updateBadges()
     toast("Scan complete","success")
     render()
@@ -774,14 +784,44 @@ function renderNoMatch(){
    CONFIG
 ============================================================ */
 
+async function loadCacheInfo(){
+  try {
+    const info = await api("/api/cache/info")
+    const el = document.getElementById("cache-info")
+    if (!el) return
+    if (!info.exists){
+      el.textContent = "No cache yet — will be created on first scan."
+      return
+    }
+    const age = info.age_seconds
+    let ageStr
+    if (age < 3600)       ageStr = `${Math.floor(age/60)}m ago`
+    else if (age < 86400) ageStr = `${Math.floor(age/3600)}h ago`
+    else                  ageStr = `${Math.floor(age/86400)}d ago`
+    el.textContent = `Last updated ${ageStr} · ${info.size_mb} MB`
+  } catch(e) {}
+}
+
+async function clearCache(){
+  if (!confirm("Clear the TMDB cache? The next scan will re-fetch all data from TMDB.")) return
+  const res = await api("/api/cache/clear","POST",{})
+  if (res.ok){
+    toast("TMDB cache cleared","success")
+    loadCacheInfo()
+  } else {
+    toast("Failed to clear cache: " + res.error,"error")
+  }
+}
+
 function renderConfig(){
   const c     = document.getElementById("content")
   const cfg   = CONFIG||{}
-  const plex  = cfg.PLEX      ||{}
-  const tmdb  = cfg.TMDB      ||{}
-  const radarr= cfg.RADARR    ||{}
-  const cls   = cfg.CLASSICS  ||{}
-  const act   = cfg.ACTOR_HITS||{}
+  const plex  = cfg.PLEX        ||{}
+  const tmdb  = cfg.TMDB        ||{}
+  const radarr= cfg.RADARR      ||{}
+  const cls   = cfg.CLASSICS    ||{}
+  const act   = cfg.ACTOR_HITS  ||{}
+  const auto  = cfg.AUTOMATION  ||{}
 
   const field = (id, label, value, type="text") => `
   <div class="form-group">
@@ -834,6 +874,23 @@ function renderConfig(){
       ${field("cfg_radarr_key",     "Radarr API Key",     radarr.RADARR_API_KEY          ||"")}
       ${field("cfg_radarr_root",    "Root Folder Path",   radarr.RADARR_ROOT_FOLDER_PATH ||"")}
       ${field("cfg_radarr_quality", "Quality Profile ID", radarr.RADARR_QUALITY_PROFILE_ID??6,"number")}
+      <div class="form-group" style="display:flex;align-items:center;gap:.6rem">
+        <input type="checkbox" id="cfg_radarr_search" ${radarr.RADARR_SEARCH_ON_ADD?"checked":""}
+          style="accent-color:var(--gold);width:14px;height:14px;cursor:pointer"/>
+        <label for="cfg_radarr_search" class="form-label" style="margin:0;cursor:pointer">Search &amp; download on add</label>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <div class="form-section-title">Automation</div>
+      ${field("cfg_poll_interval","Library poll interval (min, 0 = disabled)", auto.LIBRARY_POLL_INTERVAL??30,"number")}
+      <p style="font-size:.68rem;color:var(--text3);margin-top:-.25rem">Cineplete will auto-scan when your Plex library size changes.</p>
+    </div>
+
+    <div class="form-section" id="cache-section">
+      <div class="form-section-title">TMDB Cache</div>
+      <div id="cache-info" style="font-size:.75rem;color:var(--text3);margin-bottom:.75rem">Loading…</div>
+      <button class="btn-sm btn-ignore" style="font-size:.72rem;padding:5px 14px" onclick="clearCache()">🗑 Clear Cache</button>
     </div>
 
     <button class="btn-primary" onclick="saveConfig()">Save Configuration</button>
@@ -871,6 +928,10 @@ async function saveConfig(){
       RADARR_API_KEY:           v("cfg_radarr_key"),
       RADARR_ROOT_FOLDER_PATH:  v("cfg_radarr_root"),
       RADARR_QUALITY_PROFILE_ID:vi("cfg_radarr_quality"),
+      RADARR_SEARCH_ON_ADD:     document.getElementById("cfg_radarr_search")?.checked||false,
+    },
+    AUTOMATION:{
+      LIBRARY_POLL_INTERVAL: vi("cfg_poll_interval"),
     },
   }
 
