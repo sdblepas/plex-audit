@@ -167,6 +167,7 @@ jobs:
   build:
     name: Build & Push Docker
     needs: version
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
