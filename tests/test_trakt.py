@@ -427,8 +427,9 @@ class TestWatched:
         assert trakt_mod._watched_cache["ts"] == 0.0
 
     def test_empty_result_not_cached_on_fetch_error(self):
-        """When the cache is cold and the fetch fails, return [] but do not cache it
-        so the next request tries again immediately."""
+        """When the cache is cold and the fetch fails, the response must signal
+        failure (ok: False) so the frontend knows not to wipe watched badges,
+        and the cache must not be poisoned so the next request retries."""
         from app.routers import trakt as trakt_mod
         trakt_mod._watched_cache["data"] = None
         trakt_mod._watched_cache["ts"]   = 0.0
@@ -439,7 +440,10 @@ class TestWatched:
             mock_get.return_value  = _make_response(500)
             res = self.client.get("/api/trakt/watched")
 
-        assert res.json() == {"ok": True, "tmdb_ids": []}
+        data = res.json()
+        assert data["ok"] is False
+        assert data["tmdb_ids"] == []
+        assert "error" in data
         # Cache timestamp must remain 0 so the next call retries
         assert trakt_mod._watched_cache["ts"] == 0.0
 

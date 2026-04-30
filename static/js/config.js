@@ -900,16 +900,25 @@ async function traktRefreshWatched(btn) {
 
   // Bust backend cache then re-fetch
   await api("/api/trakt/watched/refresh", "POST")
-  await _fetchTraktWatched()
+  const res = await _fetchTraktWatched()
 
   btn.disabled = false
   if (statusEl) {
-    const n = _traktWatchedIds?.size ?? 0
-    statusEl.textContent = `✓ ${n} watched movies`
-    statusEl.style.color = "var(--green)"
+    if (res?.ok) {
+      const n = _traktWatchedIds?.size ?? 0
+      statusEl.textContent = `✓ ${n} watched movies`
+      statusEl.style.color = "var(--green)"
+    } else {
+      statusEl.textContent = "⚠ Fetch failed — try reconnecting"
+      statusEl.style.color = "var(--amber, #f59e0b)"
+    }
     setTimeout(() => { if (statusEl) statusEl.textContent = "" }, 4000)
   }
-  toast(`Trakt: watched history refreshed`, "success")
+  if (res?.ok) {
+    toast(`Trakt: watched history refreshed`, "success")
+  } else {
+    toast(`Trakt: could not fetch watched history`, "error")
+  }
   // Update cards on the current tab
   if (typeof render !== "undefined" && !["config","logs"].includes(ACTIVE_TAB)) render()
 }

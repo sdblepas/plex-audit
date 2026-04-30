@@ -70,6 +70,7 @@ def _refresh_access_token(cfg: dict) -> dict | None:
             save_config(cfg)
             log.info("Trakt: access token refreshed")
             return trakt
+        log.warning(f"Trakt token refresh returned HTTP {r.status_code}")
     except requests.exceptions.RequestException as e:
         log.warning(f"Trakt token refresh failed: {e}")
     return None
@@ -289,7 +290,9 @@ def trakt_watched():
         log.warning("Trakt: watch fetch failed — keeping stale cache")
         if _watched_cache["data"] is not None:
             return _watched_cache["data"]
-        return {"ok": True, "tmdb_ids": []}
+        # No stale data: signal failure explicitly so the frontend doesn't
+        # treat this as "user genuinely watched 0 movies" and wipe badges.
+        return {"ok": False, "error": "fetch_failed", "tmdb_ids": []}
 
     result = {"ok": True, "tmdb_ids": tmdb_ids}
     _watched_cache.update({"data": result, "ts": now})

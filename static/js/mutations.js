@@ -254,12 +254,17 @@ let _traktWatchedIds = null
 
 async function _fetchTraktWatched() {
   if (!CONFIG?.TRAKT?.TRAKT_ENABLED || !CONFIG?.TRAKT?.TRAKT_ACCESS_TOKEN) {
-    _traktWatchedIds = new Set(); return
+    _traktWatchedIds = new Set()
+    return { ok: true, tmdb_ids: [] }
   }
   try {
     const res = await api("/api/trakt/watched")
-    _traktWatchedIds = res.ok ? new Set(res.tmdb_ids) : new Set()
-  } catch { _traktWatchedIds = new Set() }
+    // Only overwrite the watched set on confirmed success — if the backend
+    // signals a transient error (ok: false) we preserve whatever badges
+    // are already showing rather than wiping them.
+    if (res.ok) { _traktWatchedIds = new Set(res.tmdb_ids) }
+    return res
+  } catch { return { ok: false, error: "network_error", tmdb_ids: [] } }
 }
 
 /* ── In-memory DATA helpers ─────────────────────────────────── */
