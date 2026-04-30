@@ -275,7 +275,12 @@ class TestIgnoredEndpoint:
         try:
             with _client_ctx(path) as client:
                 r = client.get("/api/ignored")
-            assert r.json() == {"ok": True, "movies": []}
+            data = r.json()
+            assert data["ok"] is True
+            assert data["movies"]     == []
+            assert data["franchises"] == []
+            assert data["directors"]  == []
+            assert data["actors"]     == []
         finally:
             os.unlink(path)
 

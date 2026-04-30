@@ -972,39 +972,82 @@ async function renderIgnored(){
   const res = await api("/api/ignored")
   if (!res.ok) { c.innerHTML = emptyStateHTML("Could not load ignored list"); return }
 
-  const movies = res.movies || []
-  if (!movies.length) {
+  const movies     = res.movies     || []
+  const franchises = res.franchises || []
+  const directors  = res.directors  || []
+  const actors     = res.actors     || []
+
+  const hasGroups = franchises.length || directors.length || actors.length
+  const hasMovies = movies.length
+
+  if (!hasGroups && !hasMovies) {
     c.innerHTML = emptyStateHTML("No ignored movies — click 🚫 on any card to hide it permanently")
     return
   }
 
-  c.innerHTML = `
-    <p style="color:var(--text3);font-size:.78rem;margin-bottom:1rem">
-      ${movies.length} ignored movie${movies.length!==1?"s":""} — these will never appear in Missing, Classics or Suggestions.
-    </p>
-    <div class="grid-posters">
-      ${movies.map(m => {
-        const safeName = (m.title||"").replace(/'/g,"\\'").replace(/"/g,"&quot;")
-        const imgHtml  = m.poster
-          ? `<img class="pc-img" src="${m.poster}" loading="lazy" alt=""/>`
-          : `<div class="pc-no-img"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".3"><rect x="2" y="2" width="20" height="20" rx="3"/><path d="M7 2v20M17 2v20M2 12h20"/></svg><span>No Image</span></div>`
-        return `
-          <div class="pc" id="ignored-${m.tmdb}">
-            ${imgHtml}
-            <div class="pc-info">
-              <div class="pc-title" title="${escHtml(m.title||"")}">${escHtml(m.title||"Untitled")}</div>
-              <div class="pc-meta">${m.year?`<span>${m.year}</span>`:""}</div>
-            </div>
-            <div class="pc-overlay">
-              <div class="pc-overlay-title">${escHtml(m.title||"Untitled")}</div>
-              <div class="pc-overlay-actions">
-                <button class="btn-sm" onclick="unignoreMovie(${m.tmdb},'${safeName}',this)"
-                  style="color:var(--green)">↩ Restore</button>
+  const _groupRows = (items, kind, tagCls) => items.map(name => {
+    const safe  = escHtml(name)
+    const safeJs = name.replace(/\\/g,"\\\\").replace(/'/g,"\\'")
+    const fn    = kind === "franchise" ? "unignoreFranchise"
+                : kind === "director"  ? "unignoreDirector"
+                :                       "unignoreActor"
+    return `
+      <div class="meta-item" style="justify-content:space-between;gap:.5rem">
+        <div style="display:flex;align-items:center;gap:.5rem;min-width:0">
+          <span class="tag ${tagCls}" style="flex-shrink:0;font-size:.6rem;padding:1px 5px">${kind.toUpperCase()}</span>
+          <span class="meta-item-title" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${safe}">${safe}</span>
+        </div>
+        <button class="btn-sm" style="color:var(--green);flex-shrink:0"
+          onclick="${fn}('${safeJs}',this)">↩ Restore</button>
+      </div>`
+  }).join("")
+
+  let html = ""
+
+  if (hasGroups) {
+    const totalGroups = franchises.length + directors.length + actors.length
+    html += `
+      <p style="color:var(--text3);font-size:.78rem;margin-bottom:.75rem">
+        ${totalGroups} ignored group${totalGroups!==1?"s":""} — entire collections, directors or actors hidden from suggestions.
+      </p>
+      <div style="display:flex;flex-direction:column;gap:.35rem;margin-bottom:2rem">
+        ${_groupRows(franchises, "franchise", "tag-gold")}
+        ${_groupRows(directors,  "director",  "tag-green")}
+        ${_groupRows(actors,     "actor",     "tag-green")}
+      </div>`
+  }
+
+  if (hasMovies) {
+    html += `
+      <p style="color:var(--text3);font-size:.78rem;margin-bottom:1rem">
+        ${movies.length} ignored movie${movies.length!==1?"s":""} — these will never appear in Missing, Classics or Suggestions.
+      </p>
+      <div class="grid-posters">
+        ${movies.map(m => {
+          const safeName = (m.title||"").replace(/'/g,"\\'").replace(/"/g,"&quot;")
+          const imgHtml  = m.poster
+            ? `<img class="pc-img" src="${m.poster}" loading="lazy" alt=""/>`
+            : `<div class="pc-no-img"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".3"><rect x="2" y="2" width="20" height="20" rx="3"/><path d="M7 2v20M17 2v20M2 12h20"/></svg><span>No Image</span></div>`
+          return `
+            <div class="pc" id="ignored-${m.tmdb}">
+              ${imgHtml}
+              <div class="pc-info">
+                <div class="pc-title" title="${escHtml(m.title||"")}">${escHtml(m.title||"Untitled")}</div>
+                <div class="pc-meta">${m.year?`<span>${m.year}</span>`:""}</div>
               </div>
-            </div>
-          </div>`
-      }).join("")}
-    </div>`
+              <div class="pc-overlay">
+                <div class="pc-overlay-title">${escHtml(m.title||"Untitled")}</div>
+                <div class="pc-overlay-actions">
+                  <button class="btn-sm" onclick="unignoreMovie(${m.tmdb},'${safeName}',this)"
+                    style="color:var(--green)">↩ Restore</button>
+                </div>
+              </div>
+            </div>`
+        }).join("")}
+      </div>`
+  }
+
+  c.innerHTML = html
 }
 
 /* ── No TMDB GUID ────────────────────────────────────────── */

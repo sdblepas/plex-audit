@@ -86,7 +86,13 @@ def api_ignored():
             "year":   m.get("year"),
             "poster": m.get("poster"),
         })
-    return {"ok": True, "movies": movies}
+    return {
+        "ok":         True,
+        "movies":     movies,
+        "franchises": ov.get("ignore_franchises", []),
+        "directors":  ov.get("ignore_directors",  []),
+        "actors":     ov.get("ignore_actors",      []),
+    }
 
 
 # --------------------------------------------------

@@ -629,6 +629,8 @@ async function ignoreFranchise(name, btn){
 
 async function ignoreDirector(name, btn){
   await api("/api/ignore","POST",{kind:"director",value:name})
+  if (!DATA._ignored_directors) DATA._ignored_directors=[]
+  if (!DATA._ignored_directors.includes(name)) DATA._ignored_directors.push(name)
   DATA.directors = (DATA.directors||[]).filter(d=>d.name!==name)
   btn.closest(".mb-group").remove()
   updateFilterBar()
@@ -637,10 +639,53 @@ async function ignoreDirector(name, btn){
 
 async function ignoreActor(name, btn){
   await api("/api/ignore","POST",{kind:"actor",value:name})
+  if (!DATA._ignored_actors) DATA._ignored_actors=[]
+  if (!DATA._ignored_actors.includes(name)) DATA._ignored_actors.push(name)
   DATA.actors = (DATA.actors||[]).filter(a=>a.name!==name)
   btn.closest(".mb-group").remove()
   updateFilterBar()
   toast(`Actor "${name}" ignored`)
+}
+
+/* ── Unignore group actions ─────────────────────────────────── */
+
+async function unignoreFranchise(name, btn) {
+  btn.disabled = true
+  const res = await api("/api/unignore", "POST", { kind: "franchise", value: name })
+  if (res.ok) {
+    DATA._ignored_franchises = (DATA._ignored_franchises||[]).filter(n=>n!==name)
+    toast(`"${name}" restored`, "success")
+    if (typeof renderIgnored === "function") renderIgnored()
+  } else {
+    btn.disabled = false
+    toast(`Could not restore: ${res.error||"unknown error"}`, "error")
+  }
+}
+
+async function unignoreDirector(name, btn) {
+  btn.disabled = true
+  const res = await api("/api/unignore", "POST", { kind: "director", value: name })
+  if (res.ok) {
+    DATA._ignored_directors = (DATA._ignored_directors||[]).filter(n=>n!==name)
+    toast(`Director "${name}" restored`, "success")
+    if (typeof renderIgnored === "function") renderIgnored()
+  } else {
+    btn.disabled = false
+    toast(`Could not restore: ${res.error||"unknown error"}`, "error")
+  }
+}
+
+async function unignoreActor(name, btn) {
+  btn.disabled = true
+  const res = await api("/api/unignore", "POST", { kind: "actor", value: name })
+  if (res.ok) {
+    DATA._ignored_actors = (DATA._ignored_actors||[]).filter(n=>n!==name)
+    toast(`Actor "${name}" restored`, "success")
+    if (typeof renderIgnored === "function") renderIgnored()
+  } else {
+    btn.disabled = false
+    toast(`Could not restore: ${res.error||"unknown error"}`, "error")
+  }
 }
 
 /* ── Letterboxd URL management ──────────────────────────────── */
