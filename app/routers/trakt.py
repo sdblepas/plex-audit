@@ -85,13 +85,16 @@ def _fetch_watched(client_id: str, access_token: str):
       False      — transient error (network, rate-limit, server error);
                    caller must NOT cache this as "0 movies"
     """
+    log.info("Trakt: fetching watched movies from API")
     try:
         r = requests.get(
             f"{_TRAKT_BASE}/users/me/watched/movies",
             headers=_trakt_headers(client_id, access_token),
             timeout=30,
         )
+        log.info(f"Trakt: watched API responded HTTP {r.status_code}")
         if r.status_code == 401:
+            log.warning("Trakt: access token rejected (401) — will attempt refresh")
             return None   # signal: token needs refresh
         if r.status_code == 200:
             tmdb_ids = []
@@ -99,10 +102,13 @@ def _fetch_watched(client_id: str, access_token: str):
                 tmdb_id = entry.get("movie", {}).get("ids", {}).get("tmdb")
                 if tmdb_id:
                     tmdb_ids.append(int(tmdb_id))
+            log.info(f"Trakt: received {len(tmdb_ids)} watched movie IDs")
             return tmdb_ids
-        log.warning(f"Trakt watched fetch returned HTTP {r.status_code}")
+        # Non-200/401: log body snippet to help diagnose the error
+        snippet = r.text[:300].replace("\n", " ")
+        log.warning(f"Trakt watched fetch: unexpected HTTP {r.status_code} — {snippet}")
     except requests.exceptions.RequestException as e:
-        log.warning(f"Trakt watched fetch failed: {e}")
+        log.warning(f"Trakt watched fetch: network error — {e}")
     return False   # transient error — do not cache
 
 
@@ -258,14 +264,29 @@ def trakt_watched():
     Return TMDB IDs of all movies in the authenticated user's Trakt watch history.
     Cached for 1 hour. Silently returns [] when Trakt is disabled / not connected.
     """
-    now = time.time()
-    if _watched_cache["data"] is not None and now - _watched_cache["ts"] < _CACHE_TTL:
+    now        = time.time()
+    cache_age  = now - _watched_cache["ts"]
+    cache_hit  = _watched_cache["data"] is not None and cache_age < _CACHE_TTL
+
+    if cache_hit:
+        cached_count = len(_watched_cache["data"].get("tmdb_ids", []))
+        log.info(f"Trakt: returning cached data ({cached_count} IDs, "
+                 f"age {int(cache_age)}s / TTL {_CACHE_TTL}s)")
         return _watched_cache["data"]
+
+    log.info(f"Trakt: cache miss (age {int(cache_age)}s) — fetching from API")
 
     cfg   = load_config()
     trakt = cfg.get("TRAKT", {})
 
-    if not trakt.get("TRAKT_ENABLED") or not trakt.get("TRAKT_ACCESS_TOKEN"):
+    if not trakt.get("TRAKT_ENABLED"):
+        log.info("Trakt: integration disabled — returning empty list")
+        result = {"ok": True, "tmdb_ids": []}
+        _watched_cache.update({"data": result, "ts": now})
+        return result
+
+    if not trakt.get("TRAKT_ACCESS_TOKEN"):
+        log.warning("Trakt: enabled but no access token stored — returning empty list")
         result = {"ok": True, "tmdb_ids": []}
         _watched_cache.update({"data": result, "ts": now})
         return result
@@ -277,26 +298,31 @@ def trakt_watched():
 
     if tmdb_ids is None:
         # 401 — try a token refresh then retry once
+        log.info("Trakt: attempting token refresh after 401")
         refreshed = _refresh_access_token(cfg)
         if refreshed:
             access_token = refreshed.get("TRAKT_ACCESS_TOKEN", "")
+            log.info("Trakt: retrying watched fetch with refreshed token")
             tmdb_ids = _fetch_watched(client_id, access_token)
         else:
+            log.warning("Trakt: token refresh failed — treating as transient error")
             tmdb_ids = False   # refresh failed — treat as transient error
 
     if tmdb_ids is False:
         # Transient error: do NOT cache an empty result.
         # Return stale data when available so badges stay visible.
-        log.warning("Trakt: watch fetch failed — keeping stale cache")
         if _watched_cache["data"] is not None:
+            stale_count = len(_watched_cache["data"].get("tmdb_ids", []))
+            log.warning(f"Trakt: fetch failed — returning stale cache ({stale_count} IDs)")
             return _watched_cache["data"]
         # No stale data: signal failure explicitly so the frontend doesn't
         # treat this as "user genuinely watched 0 movies" and wipe badges.
+        log.warning("Trakt: fetch failed and no stale cache — returning ok:false to client")
         return {"ok": False, "error": "fetch_failed", "tmdb_ids": []}
 
     result = {"ok": True, "tmdb_ids": tmdb_ids}
     _watched_cache.update({"data": result, "ts": now})
-    log.info(f"Trakt: {len(tmdb_ids)} watched movies cached")
+    log.info(f"Trakt: {len(tmdb_ids)} watched movies cached (TTL {_CACHE_TTL}s)")
     return result
 
 
@@ -319,3 +345,48 @@ def trakt_status():
         "username":  trakt.get("TRAKT_USERNAME", "") if connected else "",
         "enabled":   trakt.get("TRAKT_ENABLED", False),
     }
+
+
+@router.get("/api/trakt/debug")
+def trakt_debug():
+    """Diagnostic endpoint — reports config/cache state without exposing tokens."""
+    cfg   = load_config()
+    trakt = cfg.get("TRAKT", {})
+    now   = time.time()
+
+    has_access_token  = bool(trakt.get("TRAKT_ACCESS_TOKEN", "").strip())
+    has_refresh_token = bool(trakt.get("TRAKT_REFRESH_TOKEN", "").strip())
+    has_client_id     = bool(trakt.get("TRAKT_CLIENT_ID", "").strip())
+    has_client_secret = bool(trakt.get("TRAKT_CLIENT_SECRET", "").strip())
+
+    cache_age     = now - _watched_cache["ts"]
+    cache_valid   = _watched_cache["data"] is not None and cache_age < _CACHE_TTL
+    cached_count  = len(_watched_cache["data"].get("tmdb_ids", [])) if _watched_cache["data"] else None
+
+    # Live connectivity probe (fast, no token required)
+    trakt_reachable = None
+    try:
+        probe = requests.get(f"{_TRAKT_BASE}/movies/trending?limit=1",
+                             headers={"trakt-api-version": "2",
+                                      "trakt-api-key": trakt.get("TRAKT_CLIENT_ID", "")},
+                             timeout=8)
+        trakt_reachable = probe.status_code
+    except requests.exceptions.RequestException as e:
+        trakt_reachable = f"error: {e}"
+
+    info = {
+        "ok":              True,
+        "enabled":         trakt.get("TRAKT_ENABLED", False),
+        "username":        trakt.get("TRAKT_USERNAME", ""),
+        "has_access_token":  has_access_token,
+        "has_refresh_token": has_refresh_token,
+        "has_client_id":     has_client_id,
+        "has_client_secret": has_client_secret,
+        "cache_valid":     cache_valid,
+        "cache_age_s":     int(cache_age),
+        "cache_ttl_s":     _CACHE_TTL,
+        "cached_ids":      cached_count,
+        "trakt_api_probe": trakt_reachable,
+    }
+    log.info(f"Trakt debug: {info}")
+    return info
