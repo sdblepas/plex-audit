@@ -49,6 +49,10 @@ def _refresh_access_token(cfg: dict) -> dict | None:
     client_secret = trakt.get("TRAKT_CLIENT_SECRET", "").strip()
     refresh_token = trakt.get("TRAKT_REFRESH_TOKEN", "").strip()
     if not all([client_id, client_secret, refresh_token]):
+        missing = [k for k, v in [("client_id", client_id),
+                                   ("client_secret", client_secret),
+                                   ("refresh_token", refresh_token)] if not v]
+        log.warning(f"Trakt: cannot refresh token — missing fields: {missing}")
         return None
     try:
         r = requests.post(

@@ -704,11 +704,13 @@ async function saveConfig(){
       STREAMING_COUNTRY: v("cfg_streaming_country").toUpperCase()||"US",
     },
     TRAKT:{
-      // Fields may not exist in DOM when connected (form is hidden) — fall back to in-memory CONFIG
+      // Fields may not exist in DOM (connected = form hidden) or may be blank (just disconnected).
+      // Use || not ?? so that empty string "" also falls back to the stored config value,
+      // preventing a "Save Configuration" with blank fields from wiping the client secret.
       TRAKT_CLIENT_ID:     document.getElementById("cfg_trakt_id")?.value?.trim()
-                           ?? CONFIG?.TRAKT?.TRAKT_CLIENT_ID     ?? "",
+                           || CONFIG?.TRAKT?.TRAKT_CLIENT_ID     || "",
       TRAKT_CLIENT_SECRET: document.getElementById("cfg_trakt_secret")?.value?.trim()
-                           ?? CONFIG?.TRAKT?.TRAKT_CLIENT_SECRET ?? "",
+                           || CONFIG?.TRAKT?.TRAKT_CLIENT_SECRET || "",
       TRAKT_HIDE_WATCHED:  vc("cfg_trakt_hide"),
       // OAuth tokens managed by device flow only — always preserve from in-memory config
       TRAKT_ENABLED:       CONFIG?.TRAKT?.TRAKT_ENABLED      ?? false,
