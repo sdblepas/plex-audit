@@ -862,18 +862,21 @@ async function traktDisconnect() {
   if (cbBox) cbBox.style.display = "none"
   if (box)   box.style.display   = "none"
   if (ctBox) {
+    // Read credentials BEFORE clearing CONFIG — they are still present at this point
+    const _storedId     = escHtml(CONFIG?.TRAKT?.TRAKT_CLIENT_ID     || "")
+    const _storedSecret = escHtml(CONFIG?.TRAKT?.TRAKT_CLIENT_SECRET || "")
     ctBox.style.display = "block"
     ctBox.innerHTML = `
       <div class="form-group">
         <label class="form-label" for="cfg_trakt_id">Client ID</label>
         <div style="position:relative">
-          <input class="form-input" id="cfg_trakt_id" type="text" value=""/>
+          <input class="form-input" id="cfg_trakt_id" type="text" value="${_storedId}"/>
         </div>
       </div>
       <div class="form-group">
         <label class="form-label" for="cfg_trakt_secret">Client Secret</label>
         <div style="position:relative">
-          <input class="form-input" id="cfg_trakt_secret" type="password" value=""
+          <input class="form-input" id="cfg_trakt_secret" type="password" value="${_storedSecret}"
             style="padding-right:2.2rem"/>
           <button type="button" onclick="this.previousElementSibling.type=this.previousElementSibling.type==='password'?'text':'password'"
             style="position:absolute;right:.4rem;top:50%;transform:translateY(-50%);
@@ -911,7 +914,7 @@ async function traktRefreshWatched(btn) {
       statusEl.textContent = `✓ ${n} watched movies`
       statusEl.style.color = "var(--green)"
     } else {
-      statusEl.textContent = "⚠ Fetch failed — try reconnecting"
+      statusEl.textContent = "⚠ Could not reach Trakt — check server logs"
       statusEl.style.color = "var(--amber, #f59e0b)"
     }
     setTimeout(() => { if (statusEl) statusEl.textContent = "" }, 4000)

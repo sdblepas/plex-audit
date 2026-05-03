@@ -140,7 +140,8 @@ class TestFetchWatched:
 
     def test_returns_false_on_network_error(self):
         import requests as req
-        with patch("app.routers.trakt.requests.get") as mock_get:
+        with patch("app.routers.trakt.requests.get") as mock_get, \
+             patch("app.routers.trakt.time.sleep"):   # skip retry waits
             mock_get.side_effect = req.exceptions.RequestException("err")
             result = self._call("cid", "tok")
         assert result is False

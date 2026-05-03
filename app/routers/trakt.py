@@ -88,32 +88,44 @@ def _fetch_watched(client_id: str, access_token: str):
       None       — HTTP 401: access token expired, caller should refresh
       False      — transient error (network, rate-limit, server error);
                    caller must NOT cache this as "0 movies"
+
+    Network errors (DNS not ready after container restart, etc.) are retried
+    up to 3 times with a 3-second gap before giving up.
     """
+    _MAX_ATTEMPTS = 3
     log.info("Trakt: fetching watched movies from API")
-    try:
-        r = requests.get(
-            f"{_TRAKT_BASE}/users/me/watched/movies",
-            headers=_trakt_headers(client_id, access_token),
-            timeout=30,
-        )
-        log.info(f"Trakt: watched API responded HTTP {r.status_code}")
-        if r.status_code == 401:
-            log.warning("Trakt: access token rejected (401) — will attempt refresh")
-            return None   # signal: token needs refresh
-        if r.status_code == 200:
-            tmdb_ids = []
-            for entry in r.json():
-                tmdb_id = entry.get("movie", {}).get("ids", {}).get("tmdb")
-                if tmdb_id:
-                    tmdb_ids.append(int(tmdb_id))
-            log.info(f"Trakt: received {len(tmdb_ids)} watched movie IDs")
-            return tmdb_ids
-        # Non-200/401: log body snippet to help diagnose the error
-        snippet = r.text[:300].replace("\n", " ")
-        log.warning(f"Trakt watched fetch: unexpected HTTP {r.status_code} — {snippet}")
-    except requests.exceptions.RequestException as e:
-        log.warning(f"Trakt watched fetch: network error — {e}")
-    return False   # transient error — do not cache
+    for attempt in range(1, _MAX_ATTEMPTS + 1):
+        try:
+            r = requests.get(
+                f"{_TRAKT_BASE}/users/me/watched/movies",
+                headers=_trakt_headers(client_id, access_token),
+                timeout=30,
+            )
+            log.info(f"Trakt: watched API responded HTTP {r.status_code}")
+            if r.status_code == 401:
+                log.warning("Trakt: access token rejected (401) — will attempt refresh")
+                return None   # signal: token needs refresh
+            if r.status_code == 200:
+                tmdb_ids = []
+                for entry in r.json():
+                    tmdb_id = entry.get("movie", {}).get("ids", {}).get("tmdb")
+                    if tmdb_id:
+                        tmdb_ids.append(int(tmdb_id))
+                log.info(f"Trakt: received {len(tmdb_ids)} watched movie IDs")
+                return tmdb_ids
+            # Non-200/401 HTTP: deterministic error — do not retry
+            snippet = r.text[:300].replace("\n", " ")
+            log.warning(f"Trakt watched fetch: unexpected HTTP {r.status_code} — {snippet}")
+            return False
+        except requests.exceptions.RequestException as e:
+            if attempt < _MAX_ATTEMPTS:
+                log.warning(f"Trakt watched fetch: network error "
+                            f"(attempt {attempt}/{_MAX_ATTEMPTS}), retrying in 3 s — {e}")
+                time.sleep(3)
+            else:
+                log.warning(f"Trakt watched fetch: network error after "
+                            f"{_MAX_ATTEMPTS} attempts — {e}")
+    return False   # all retries exhausted
 
 
 # ---------------------------------------------------------------------------
@@ -133,15 +145,22 @@ def trakt_device_code(payload: dict = Body(...)):
     if not client_id:
         return {"ok": False, "error": "Client ID is required"}
 
-    try:
-        r = requests.post(
-            f"{_TRAKT_BASE}/oauth/device/code",
-            json={"client_id": client_id},
-            headers={"Content-Type": "application/json"},
-            timeout=15,
-        )
-    except requests.exceptions.RequestException as e:
-        return {"ok": False, "error": str(e)}
+    # Retry once on network error — Docker DNS can be slow after container start
+    r = None
+    for attempt in range(1, 3):
+        try:
+            r = requests.post(
+                f"{_TRAKT_BASE}/oauth/device/code",
+                json={"client_id": client_id},
+                headers={"Content-Type": "application/json"},
+                timeout=15,
+            )
+            break  # success — stop retrying
+        except requests.exceptions.RequestException as e:
+            if attempt == 2:
+                return {"ok": False, "error": f"Could not reach Trakt API: {e}"}
+            log.warning(f"Trakt device code: network error, retrying in 3 s — {e}")
+            time.sleep(3)
 
     if r.status_code != 200:
         return {"ok": False, "error": f"Trakt returned HTTP {r.status_code}"}
