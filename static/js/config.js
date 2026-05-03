@@ -832,12 +832,11 @@ async function traktConnect() {
           </div>`
       }
       if (ctBox) ctBox.style.display = "none"
-      // Update global config
-      if (CONFIG?.TRAKT) {
-        CONFIG.TRAKT.TRAKT_ACCESS_TOKEN = "set"
-        CONFIG.TRAKT.TRAKT_USERNAME     = poll.username || ""
-        CONFIG.TRAKT.TRAKT_ENABLED      = true
-      }
+      // Re-sync in-memory CONFIG from the server so any subsequent "Save
+      // Configuration" preserves the freshly-stored tokens (access + refresh).
+      // The partial manual update below was incomplete (TRAKT_REFRESH_TOKEN was
+      // never set, and TRAKT_ACCESS_TOKEN was set to the placeholder "set").
+      try { CONFIG = await api("/api/config") } catch {}
       toast(`Trakt connected as @${poll.username||""}`, "success")
       // Refresh watched list
       _fetchTraktWatched?.()
